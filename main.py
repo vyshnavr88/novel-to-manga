@@ -1,4 +1,4 @@
-# main.py - Complete FastAPI Backend (Deploy to Render.com FREE)
+# main.py - FIXED VERSION (Works on all platforms!)
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,7 +11,7 @@ import httpx
 
 app = FastAPI(title="Novel to Manga API - FREE Edition")
 
-# CORS - Allow all origins for now
+# CORS - Allow all origins
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -20,17 +20,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize clients
+# Initialize Groq client
 groq_client = None
 if os.getenv("GROQ_API_KEY"):
     groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 fal_api_key = os.getenv("FAL_API_KEY")
 
-# Models
+# Pydantic Models (v1 compatible)
 class NovelInput(BaseModel):
     text: str
     groq_key: Optional[str] = None
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "text": "Your novel text here...",
+                "groq_key": "optional_groq_key"
+            }
+        }
 
 class Scene(BaseModel):
     id: int
@@ -41,6 +49,20 @@ class Scene(BaseModel):
     dialogue: List[str]
     shot: str
     emotion: str
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "id": 1,
+                "type": "action",
+                "panels": 2,
+                "characters": ["Hero", "Villain"],
+                "description": "Epic battle scene",
+                "dialogue": ["Hero: I won't give up!"],
+                "shot": "wide",
+                "emotion": "intense"
+            }
+        }
 
 class ImagePromptRequest(BaseModel):
     scene: Scene
@@ -56,16 +78,18 @@ async def root():
     return {
         "message": "Novel to Manga API - FREE Edition",
         "status": "running",
+        "version": "1.0.0",
         "endpoints": {
-            "analyze": "/api/analyze",
-            "prompts": "/api/generate-prompts", 
-            "image": "/api/generate-image"
+            "analyze": "POST /api/analyze",
+            "prompts": "POST /api/generate-prompts", 
+            "image": "POST /api/generate-image",
+            "health": "GET /health"
         }
     }
 
 @app.post("/api/analyze")
 async def analyze_novel(input_data: NovelInput):
-    """Analyze novel text and break into scenes"""
+    """Analyze novel text and break into manga scenes"""
     
     # Use provided key or default
     client = groq_client
@@ -110,7 +134,7 @@ Novel text:
 Remember: Return ONLY the JSON array, no markdown formatting, no explanations."""
 
         response = client.chat.completions.create(
-            model="mixtral-8x7b-32768",  # Free and fast!
+            model="mixtral-8x7b-32768",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7,
             max_tokens=4000
@@ -256,7 +280,8 @@ async def health_check():
     return {
         "status": "healthy",
         "groq_configured": groq_client is not None,
-        "fal_configured": fal_api_key is not None
+        "fal_configured": fal_api_key is not None,
+        "python_version": os.sys.version
     }
 
 if __name__ == "__main__":
